@@ -6,7 +6,6 @@ import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
-import Popper from '@mui/material/Popper';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Button from '@mui/material/Button';
@@ -665,18 +664,19 @@ export default function OrderList() {
         ))}
       </Menu>
 
-      {/* 鼠标悬停产品照片预览（仅桌面端表格行有 productPhoto 时显示） */}
+      {/* 鼠标悬停产品照片预览：固定右下角浮窗（不挡页面、始终完整显示） */}
       {hoveredRow && (() => {
         const hoverOrder = orders.find((o) => o.id === hoveredRow.orderId);
         if (!hoverOrder || !hoverOrder.productPhoto) return null;
         return (
-          <Popper
-            open={Boolean(hoveredRow.anchorEl)}
-            anchorEl={hoveredRow.anchorEl}
-            placement="right-start"
-            disablePortal={false}
-            modifiers={[{ name: 'offset', options: { offset: [12, 0] } }]}
-            style={{ zIndex: 1300, pointerEvents: 'auto' }}
+          <Box
+            sx={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              zIndex: 1300,
+              pointerEvents: 'auto',
+            }}
             onMouseEnter={() => {
               if (hoverLeaveTimerRef.current) {
                 clearTimeout(hoverLeaveTimerRef.current);
@@ -691,14 +691,22 @@ export default function OrderList() {
               }, 100);
             }}
           >
-            <Paper elevation={8} sx={{ p: 0.5, bgcolor: 'background.paper', borderRadius: 1 }}>
+            <Paper elevation={8} sx={{ borderRadius: 1, overflow: 'hidden' }}>
               <img
                 src={hoverOrder.productPhoto}
                 alt="产品照片"
-                style={{ width: 200, height: 200, objectFit: 'cover', display: 'block' }}
+                style={{ width: 240, height: 240, objectFit: 'cover', display: 'block' }}
               />
+              <Box sx={{ px: 1.5, py: 1, maxWidth: 240 }}>
+                <Typography variant="body2" fontWeight={600} noWrap>
+                  {hoverOrder.poNumber}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {hoverOrder.customerName}
+                </Typography>
+              </Box>
             </Paper>
-          </Popper>
+          </Box>
         );
       })()}
 
