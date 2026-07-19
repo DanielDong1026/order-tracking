@@ -20,7 +20,11 @@ export function generateShareToken() {
  * @returns {string} 完整 URL，如 https://example.com/share/abc123def
  */
 export function buildShareUrl(token) {
-  return `${window.location.origin}/share/${token}`;
+  const { origin, pathname } = window.location;
+  // 兼容 GitHub Pages 子路径部署（如 /order-tracking/）与本地根路径
+  // HashRouter 下分享链接必须带 #，否则刷新会 404
+  const base = pathname.endsWith('/') ? pathname : `${pathname}/`;
+  return `${origin}${base}#/share/${token}`;
 }
 
 /**
