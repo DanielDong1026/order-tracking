@@ -45,7 +45,7 @@ import ShareLinkSection from '../components/ShareLinkSection';
 export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getOrderById, advanceStatus, canEdit, getNextStatuses, addAttachments, updateTimelineNote, deleteOrder, addOrder } = useOrders();
+  const { getOrderById, advanceStatus, canEdit, getNextStatuses, addAttachments, addTimelineNote, updateTimelineNote, deleteTimelineNote, deleteOrder, addOrder } = useOrders();
 
   const order = getOrderById(id);
 
@@ -357,7 +357,14 @@ export default function OrderDetail() {
           状态时间线
         </Typography>
         <Divider sx={{ mb: 2 }} />
-        <StatusTimeline timeline={order.timeline} currentStatus={order.status} onPasteImages={handlePasteImages} onUpdateNote={(nodeName, note) => updateTimelineNote(order.id, nodeName, note)} />
+        <StatusTimeline
+          timeline={order.timeline}
+          currentStatus={order.status}
+          onPasteImages={handlePasteImages}
+          onAddNote={(nodeName, text) => addTimelineNote(order.id, nodeName, text)}
+          onUpdateNoteText={(nodeName, noteId, text) => updateTimelineNote(order.id, nodeName, noteId, text)}
+          onDeleteNote={(nodeName, noteId) => deleteTimelineNote(order.id, nodeName, noteId)}
+        />
       </Paper>
 
       {/* 状态推进弹窗 */}

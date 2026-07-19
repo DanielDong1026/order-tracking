@@ -7,7 +7,7 @@ const OrderContext = createContext(null);
 
 /**
  * Reducer action types
- * @typedef {'LOAD_ORDERS'|'ADD_ORDER'|'UPDATE_ORDER'|'ADVANCE_STATUS'|'ADD_ATTACHMENTS'|'UPDATE_TIMELINE_NOTE'|'DELETE_ORDER'|'IMPORT_ORDERS'} ActionType
+ * @typedef {'LOAD_ORDERS'|'ADD_ORDER'|'UPDATE_ORDER'|'ADVANCE_STATUS'|'ADD_ATTACHMENTS'|'ADD_TIMELINE_NOTE'|'UPDATE_TIMELINE_NOTE'|'DELETE_TIMELINE_NOTE'|'DELETE_ORDER'|'IMPORT_ORDERS'} ActionType
  */
 
 /**
@@ -67,7 +67,10 @@ function orderReducer(state, action) {
                   {
                     node: newStatus,
                     date: date || now,
-                    note: note || '',
+                    // 新数据模型：note 字符串 → notes 数组
+                    notes: note
+                      ? [{ id: generateId(), text: note, createdAt: now, updatedAt: now }]
+                      : [],
                     attachments: attachment
                       ? [{ id: generateId(), name: '附件', data: attachment, type: 'application/octet-stream' }]
                       : [],
@@ -102,9 +105,9 @@ function orderReducer(state, action) {
       };
     }
 
-    case 'UPDATE_TIMELINE_NOTE': {
-      // 修改时间线指定节点的备注（不影响日期与附件）
-      const { orderId, nodeName, note } = action.payload;
+    case 'ADD_TIMELINE_NOTE': {
+      // 给指定时间线节点新增一条备注（追加到 notes 数组末尾）
+      const { orderId, nodeName, text } = action.payload;
       const now = new Date().toISOString();
       return {
         ...state,
@@ -112,9 +115,69 @@ function orderReducer(state, action) {
           if (o.id !== orderId) return o;
           return {
             ...o,
-            timeline: o.timeline.map((t) =>
-              t.node === nodeName ? { ...t, note: note || '' } : t
-            ),
+            timeline: o.timeline.map((t) => {
+              if (t.node !== nodeName) return t;
+              const existing = t.notes || [];
+              return {
+                ...t,
+                notes: [
+                  ...existing,
+                  { id: generateId(), text: text || '', createdAt: now, updatedAt: now },
+                ],
+              };
+            }),
+            updatedAt: now,
+          };
+        }),
+      };
+    }
+
+    case 'UPDATE_TIMELINE_NOTE': {
+      // 修改指定节点的某条备注（按 noteId 定位；只更新 text 与 updatedAt）
+      const { orderId, nodeName, noteId, text } = action.payload;
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orders: state.orders.map((o) => {
+          if (o.id !== orderId) return o;
+          return {
+            ...o,
+            timeline: o.timeline.map((t) => {
+              if (t.node !== nodeName) return t;
+              const existing = t.notes || [];
+              return {
+                ...t,
+                notes: existing.map((n) =>
+                  n.id === noteId
+                    ? { ...n, text: text || '', updatedAt: now }
+                    : n
+                ),
+              };
+            }),
+            updatedAt: now,
+          };
+        }),
+      };
+    }
+
+    case 'DELETE_TIMELINE_NOTE': {
+      // 删除指定节点的某条备注
+      const { orderId, nodeName, noteId } = action.payload;
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orders: state.orders.map((o) => {
+          if (o.id !== orderId) return o;
+          return {
+            ...o,
+            timeline: o.timeline.map((t) => {
+              if (t.node !== nodeName) return t;
+              const existing = t.notes || [];
+              return {
+                ...t,
+                notes: existing.filter((n) => n.id !== noteId),
+              };
+            }),
             updatedAt: now,
           };
         }),
@@ -193,25 +256,49 @@ export function OrderProvider({ children }) {
     }
   }, [state.orders, state.loaded]);
 
-  // 旧数据兼容迁移：attachment (string|null) → attachments[]
+  // 旧数据兼容迁移：attachment (string) → attachments[]；note (string) → notes[]
   useEffect(() => {
     if (!state.loaded) return;
     let needsMigration = false;
     const migrated = state.orders.map((order) => {
-      let changed = false;
+      let orderChanged = false;
       const newTimeline = order.timeline.map((t) => {
+        const updates = {};
+        let nodeChanged = false;
+
+        // 旧 attachment (string|null) → attachments[]
         if (t.attachment && !t.attachments) {
-          changed = true;
+          updates.attachments = [{
+            id: generateId(),
+            name: '附件',
+            data: t.attachment,
+            type: 'application/octet-stream',
+          }];
+          updates.attachment = undefined;
+          nodeChanged = true;
+        }
+
+        // 旧 note (string) → notes[]（仅当 notes 不存在或为空时迁移）
+        if (t.note && (!t.notes || t.notes.length === 0)) {
+          const ts = t.date || new Date().toISOString();
+          updates.notes = [{
+            id: generateId(),
+            text: t.note,
+            createdAt: ts,
+            updatedAt: ts,
+          }];
+          updates.note = undefined;
+          nodeChanged = true;
+        }
+
+        if (nodeChanged) {
+          orderChanged = true;
           needsMigration = true;
-          return {
-            ...t,
-            attachments: [{ id: generateId(), name: '附件', data: t.attachment, type: 'application/octet-stream' }],
-            attachment: undefined,
-          };
+          return { ...t, ...updates };
         }
         return t;
       });
-      return changed ? { ...order, timeline: newTimeline } : order;
+      return orderChanged ? { ...order, timeline: newTimeline } : order;
     });
     if (needsMigration) {
       dispatch({ type: 'LOAD_ORDERS', payload: migrated });
@@ -245,10 +332,26 @@ export function OrderProvider({ children }) {
   }, []);
 
   /** 更新指定时间线节点的备注（不影响日期与附件） */
-  const updateTimelineNote = useCallback((orderId, nodeName, note) => {
+  const updateTimelineNote = useCallback((orderId, nodeName, noteId, text) => {
     dispatch({
       type: 'UPDATE_TIMELINE_NOTE',
-      payload: { orderId, nodeName, note },
+      payload: { orderId, nodeName, noteId, text },
+    });
+  }, []);
+
+  /** 新增一条时间线节点备注（追加到 notes 末尾） */
+  const addTimelineNote = useCallback((orderId, nodeName, text) => {
+    dispatch({
+      type: 'ADD_TIMELINE_NOTE',
+      payload: { orderId, nodeName, text },
+    });
+  }, []);
+
+  /** 删除指定节点的一条备注 */
+  const deleteTimelineNote = useCallback((orderId, nodeName, noteId) => {
+    dispatch({
+      type: 'DELETE_TIMELINE_NOTE',
+      payload: { orderId, nodeName, noteId },
     });
   }, []);
 
@@ -348,7 +451,9 @@ export function OrderProvider({ children }) {
     updateOrder,
     advanceStatus,
     addAttachments,
+    addTimelineNote,
     updateTimelineNote,
+    deleteTimelineNote,
     deleteOrder,
     importOrders,
     getOrderById,
