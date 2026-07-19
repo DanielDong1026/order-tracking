@@ -53,19 +53,19 @@ describe('share.js — buildShareUrl', () => {
     });
   });
 
-  it('应根据 token 构造完整 URL', () => {
+  it('应根据 token 构造完整 URL（HashRouter 格式：带 #）', () => {
     const url = buildShareUrl('abc123def');
-    expect(url).toBe('https://example.com/share/abc123def');
+    expect(url).toBe('https://example.com/#/share/abc123def');
   });
 
   it('空 token 也应能构造 URL', () => {
     const url = buildShareUrl('');
-    expect(url).toBe('https://example.com/share/');
+    expect(url).toBe('https://example.com/#/share/');
   });
 
   it('特殊字符 token 应保留原样（不做编码）', () => {
     const url = buildShareUrl('test-token_x');
-    expect(url).toBe('https://example.com/share/test-token_x');
+    expect(url).toBe('https://example.com/#/share/test-token_x');
   });
 });
 

@@ -46,6 +46,7 @@ export const STATUS_CHIP_COLORS = {
 export const DEFAULT_ORDER_FORM = {
   customerName: '',
   poNumber: '',
+  sku: '',
   productSummary: '',
   quantity: '',
   amount: '',
@@ -57,6 +58,7 @@ export const DEFAULT_ORDER_FORM = {
   factoryName: '',
   notes: '',
   piAttachment: null,
+  productPhoto: null,
   tags: [],
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -6,6 +6,7 @@ import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
+import Popper from '@mui/material/Popper';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Button from '@mui/material/Button';
@@ -62,12 +63,13 @@ const STATUS_STRIPE_COLORS = {
  */
 function exportToCSV(orders) {
   const headers = [
-    '客户名称', 'PO号', '产品概述', '数量', '金额', '贸易术语',
+    '客户名称', 'PO号', 'SKU', '产品概述', '数量', '金额', '贸易术语',
     '起运港', '目的港', '预计交货日', '业务员', '工厂名称', '备注', '状态', '创建时间',
   ];
   const rows = orders.map((o) => [
     o.customerName,
     o.poNumber,
+    o.sku,
     o.productSummary,
     o.quantity,
     o.amount,
@@ -116,6 +118,10 @@ export default function OrderList() {
   // 快速状态推进：每行的下拉菜单锚点
   const [advanceAnchor, setAdvanceAnchor] = useState(null);
   const [advanceOrderId, setAdvanceOrderId] = useState(null);
+
+  // 鼠标悬停产品照片：{ orderId, anchorEl } | null
+  const [hoveredRow, setHoveredRow] = useState(null);
+  const hoverLeaveTimerRef = useRef(null);
 
   // 状态推进成功提示
   const [advanceSnackbar, setAdvanceSnackbar] = useState({ open: false, message: '' });
@@ -276,6 +282,16 @@ export default function OrderList() {
               {order.customerName}
             </Typography>
 
+            {/* SKU（如果有） */}
+            {order.sku && (
+              <Typography
+                variant="caption"
+                sx={{ fontFamily: 'monospace', color: 'text.disabled', display: 'block' }}
+              >
+                SKU: {order.sku}
+              </Typography>
+            )}
+
             {/* 产品描述 + 数量 */}
             <Typography variant="body2" sx={{ mt: 0.5 }}>
               {order.productSummary}{order.quantity ? ` · ${order.quantity} pcs` : ''}
@@ -350,6 +366,7 @@ export default function OrderList() {
             <TableCell sx={{ fontWeight: 700 }}>客户名称</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>PO号</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>产品概述</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>数量</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>金额</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>贸易术语</TableCell>
@@ -378,6 +395,20 @@ export default function OrderList() {
                 },
               }}
               onClick={() => navigate(`/orders/${order.id}`)}
+              onMouseEnter={(e) => {
+                if (hoverLeaveTimerRef.current) {
+                  clearTimeout(hoverLeaveTimerRef.current);
+                  hoverLeaveTimerRef.current = null;
+                }
+                setHoveredRow({ orderId: order.id, anchorEl: e.currentTarget });
+              }}
+              onMouseLeave={() => {
+                if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
+                hoverLeaveTimerRef.current = setTimeout(() => {
+                  setHoveredRow(null);
+                  hoverLeaveTimerRef.current = null;
+                }, 150);
+              }}
             >
               <TableCell>{order.customerName}</TableCell>
               <TableCell>
@@ -397,6 +428,26 @@ export default function OrderList() {
                 >
                   {order.productSummary}
                 </Typography>
+              </TableCell>
+              <TableCell>
+                {order.sku ? (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      maxWidth: 140,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: 'text.secondary',
+                    }}
+                  >
+                    {order.sku}
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="text.disabled">-</Typography>
+                )}
               </TableCell>
               <TableCell>{order.quantity}</TableCell>
               <TableCell>{order.amount}</TableCell>
@@ -613,6 +664,43 @@ export default function OrderList() {
           </MenuItem>
         ))}
       </Menu>
+
+      {/* 鼠标悬停产品照片预览（仅桌面端表格行有 productPhoto 时显示） */}
+      {hoveredRow && (() => {
+        const hoverOrder = orders.find((o) => o.id === hoveredRow.orderId);
+        if (!hoverOrder || !hoverOrder.productPhoto) return null;
+        return (
+          <Popper
+            open={Boolean(hoveredRow.anchorEl)}
+            anchorEl={hoveredRow.anchorEl}
+            placement="right-start"
+            disablePortal={false}
+            modifiers={[{ name: 'offset', options: { offset: [12, 0] } }]}
+            style={{ zIndex: 1300, pointerEvents: 'auto' }}
+            onMouseEnter={() => {
+              if (hoverLeaveTimerRef.current) {
+                clearTimeout(hoverLeaveTimerRef.current);
+                hoverLeaveTimerRef.current = null;
+              }
+            }}
+            onMouseLeave={() => {
+              if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
+              hoverLeaveTimerRef.current = setTimeout(() => {
+                setHoveredRow(null);
+                hoverLeaveTimerRef.current = null;
+              }, 100);
+            }}
+          >
+            <Paper elevation={8} sx={{ p: 0.5, bgcolor: 'background.paper', borderRadius: 1 }}>
+              <img
+                src={hoverOrder.productPhoto}
+                alt="产品照片"
+                style={{ width: 200, height: 200, objectFit: 'cover', display: 'block' }}
+              />
+            </Paper>
+          </Popper>
+        );
+      })()}
 
       {/* 状态推进成功提示 */}
       <Snackbar

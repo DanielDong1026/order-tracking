@@ -40,9 +40,11 @@ export default function OrderForm() {
   const tagOptions = useMemo(() => allTags.map((t) => t.tag), [allTags]);
 
   const fileInputRef = useRef(null);
+  const productPhotoInputRef = useRef(null);
 
   const [form, setForm] = useState(DEFAULT_ORDER_FORM);
   const [piPreview, setPiPreview] = useState(null); // 附件预览 URL
+  const [productPhotoPreview, setProductPhotoPreview] = useState(null); // 产品照片预览 URL
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
@@ -63,6 +65,7 @@ export default function OrderForm() {
       setForm({
         customerName: order.customerName || '',
         poNumber: order.poNumber || '',
+        sku: order.sku || '',
         productSummary: order.productSummary || '',
         quantity: order.quantity ?? '',
         amount: order.amount || '',
@@ -76,10 +79,14 @@ export default function OrderForm() {
         factoryName: order.factoryName || '',
         notes: order.notes || '',
         piAttachment: order.piAttachment || null,
+        productPhoto: order.productPhoto || null,
         tags: order.tags || [],
       });
       if (order.piAttachment) {
         setPiPreview(order.piAttachment);
+      }
+      if (order.productPhoto) {
+        setProductPhotoPreview(order.productPhoto);
       }
     }
   }, [id, isEdit, getOrderById, canEdit, navigate]);
@@ -92,6 +99,7 @@ export default function OrderForm() {
         setForm({
           customerName: sourceOrder.customerName || '',
           poNumber: '', // 核心：PO 号留空让用户自己填
+          sku: sourceOrder.sku || '',
           productSummary: sourceOrder.productSummary || '',
           quantity: sourceOrder.quantity ?? '',
           amount: sourceOrder.amount || '',
@@ -105,10 +113,14 @@ export default function OrderForm() {
           factoryName: sourceOrder.factoryName || '',
           notes: sourceOrder.notes || '',
           piAttachment: sourceOrder.piAttachment || null,
+          productPhoto: sourceOrder.productPhoto || null,
           tags: sourceOrder.tags || [],
         });
         if (sourceOrder.piAttachment) {
           setPiPreview(sourceOrder.piAttachment);
+        }
+        if (sourceOrder.productPhoto) {
+          setProductPhotoPreview(sourceOrder.productPhoto);
         }
       }
     }
@@ -152,6 +164,36 @@ export default function OrderForm() {
   const handleRemoveAttachment = () => {
     setForm((prev) => ({ ...prev, piAttachment: null }));
     setPiPreview(null);
+  };
+
+  /** 处理产品照片上传（仅图片） */
+  const handleProductPhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setSubmitError('产品照片只支持图片格式');
+      return;
+    }
+
+    try {
+      const base64 = await fileToBase64(file);
+      setForm((prev) => ({ ...prev, productPhoto: base64 }));
+      setProductPhotoPreview(base64);
+      setSubmitError('');
+    } catch (err) {
+      setSubmitError(err.message || '产品照片读取失败');
+    }
+
+    if (productPhotoInputRef.current) {
+      productPhotoInputRef.current.value = '';
+    }
+  };
+
+  /** 移除产品照片 */
+  const handleRemoveProductPhoto = () => {
+    setForm((prev) => ({ ...prev, productPhoto: null }));
+    setProductPhotoPreview(null);
   };
 
   /** 表单验证 */
@@ -236,7 +278,7 @@ export default function OrderForm() {
             基本信息
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
                 required
@@ -248,7 +290,7 @@ export default function OrderForm() {
                 size="small"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
                 required
@@ -258,6 +300,16 @@ export default function OrderForm() {
                 error={Boolean(errors.poNumber)}
                 helperText={errors.poNumber}
                 size="small"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="SKU"
+                value={form.sku}
+                onChange={handleChange('sku')}
+                size="small"
+                placeholder="如 SKU-001"
               />
             </Grid>
             <Grid item xs={12}>
@@ -446,7 +498,59 @@ export default function OrderForm() {
 
           <Divider sx={{ mb: 3 }} />
 
-          {/* 第四组：PI 附件 */}
+          {/* 第四组：产品照片（单张图片，与 PI 附件独立） */}
+          <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
+            产品照片
+          </Typography>
+          <Box sx={{ mb: 3 }}>
+            <input
+              ref={productPhotoInputRef}
+              type="file"
+              accept="image/*"
+              className="file-input-hidden"
+              onChange={handleProductPhotoChange}
+              id="product-photo-input"
+            />
+            <label htmlFor="product-photo-input">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<CloudUploadIcon />}
+                size="small"
+              >
+                上传产品照片（仅图片，最大 5MB）
+              </Button>
+            </label>
+          </Box>
+
+          {productPhotoPreview && (
+            <Box sx={{ position: 'relative', display: 'inline-block', mb: 2 }}>
+              <img
+                src={productPhotoPreview}
+                alt="产品照片预览"
+                className="attachment-preview"
+                style={{ maxWidth: 300, maxHeight: 300 }}
+              />
+              <IconButton
+                size="small"
+                onClick={handleRemoveProductPhoto}
+                sx={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                  bgcolor: 'rgba(0,0,0,0.5)',
+                  color: '#fff',
+                  '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )}
+
+          <Divider sx={{ mb: 3 }} />
+
+          {/* 第五组：PI 附件 */}
           <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 2 }}>
             PI 附件
           </Typography>

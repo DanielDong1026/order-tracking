@@ -196,6 +196,7 @@ export default function OrderDetail() {
   const infoFields = [
     { label: '客户名称', value: order.customerName },
     { label: 'PO号', value: order.poNumber },
+    { label: 'SKU', value: order.sku || '-' },
     { label: '产品概述', value: order.productSummary, fullWidth: true },
     { label: '数量', value: order.quantity },
     { label: '金额', value: order.amount },
@@ -297,6 +298,25 @@ export default function OrderDetail() {
               <Chip key={tag} label={tag} size="small" variant="outlined" />
             ))}
           </Box>
+        )}
+
+        {/* 产品照片（与 PI 附件独立） */}
+        {order.productPhoto && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="caption" color="text.secondary" gutterBottom>
+              产品照片
+            </Typography>
+            <Box>
+              <img
+                src={order.productPhoto}
+                alt="产品照片"
+                className="attachment-preview"
+                style={{ maxWidth: 400, maxHeight: 400, cursor: 'pointer' }}
+                onClick={() => window.open(order.productPhoto, '_blank')}
+              />
+            </Box>
+          </>
         )}
 
         {/* PI 附件 */}
