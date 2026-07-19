@@ -7,7 +7,7 @@ const OrderContext = createContext(null);
 
 /**
  * Reducer action types
- * @typedef {'LOAD_ORDERS'|'ADD_ORDER'|'UPDATE_ORDER'|'ADVANCE_STATUS'|'ADD_ATTACHMENTS'|'DELETE_ORDER'|'IMPORT_ORDERS'} ActionType
+ * @typedef {'LOAD_ORDERS'|'ADD_ORDER'|'UPDATE_ORDER'|'ADVANCE_STATUS'|'ADD_ATTACHMENTS'|'UPDATE_TIMELINE_NOTE'|'DELETE_ORDER'|'IMPORT_ORDERS'} ActionType
  */
 
 /**
@@ -97,6 +97,25 @@ function orderReducer(state, action) {
               };
             }),
             updatedAt: new Date().toISOString(),
+          };
+        }),
+      };
+    }
+
+    case 'UPDATE_TIMELINE_NOTE': {
+      // 修改时间线指定节点的备注（不影响日期与附件）
+      const { orderId, nodeName, note } = action.payload;
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orders: state.orders.map((o) => {
+          if (o.id !== orderId) return o;
+          return {
+            ...o,
+            timeline: o.timeline.map((t) =>
+              t.node === nodeName ? { ...t, note: note || '' } : t
+            ),
+            updatedAt: now,
           };
         }),
       };
@@ -225,6 +244,14 @@ export function OrderProvider({ children }) {
     });
   }, []);
 
+  /** 更新指定时间线节点的备注（不影响日期与附件） */
+  const updateTimelineNote = useCallback((orderId, nodeName, note) => {
+    dispatch({
+      type: 'UPDATE_TIMELINE_NOTE',
+      payload: { orderId, nodeName, note },
+    });
+  }, []);
+
   /** 删除订单 */
   const deleteOrder = useCallback((id) => {
     dispatch({ type: 'DELETE_ORDER', payload: id });
@@ -321,6 +348,7 @@ export function OrderProvider({ children }) {
     updateOrder,
     advanceStatus,
     addAttachments,
+    updateTimelineNote,
     deleteOrder,
     importOrders,
     getOrderById,

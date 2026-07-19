@@ -4,7 +4,11 @@ import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import CloseIcon from '@mui/icons-material/Close';
+import EditIcon from '@mui/icons-material/Edit';
 import dayjs from 'dayjs';
 import { STATUS_NODES, STATUS_COLORS, PASTE_HINT_TEXT } from '../data/constants';
 import usePasteImage from '../hooks/usePasteImage';
@@ -35,12 +39,32 @@ function TimelineNodeCard({
   totalLen,
   onPasteImages,
   onDeleteAttachment,
+  onUpdateNote,
 }) {
   const nodeRef = useRef(null);
 
   // 追踪附件数量变化，用于粘贴反馈动画
   const prevCountRef = useRef(entry?.attachments?.length || 0);
   const [highlightIdSet, setHighlightIdSet] = useState(new Set());
+
+  // 备注编辑状态
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+
+  const handleStartEditNote = () => {
+    setNoteDraft(entry?.note || '');
+    setIsEditingNote(true);
+  };
+
+  const handleSaveNote = () => {
+    if (onUpdateNote) onUpdateNote(node, noteDraft.trim());
+    setIsEditingNote(false);
+  };
+
+  const handleCancelEditNote = () => {
+    setIsEditingNote(false);
+    setNoteDraft('');
+  };
 
   // 粘贴监听
   usePasteImage(nodeRef, (files) => {
@@ -126,10 +150,65 @@ function TimelineNodeCard({
           <Typography variant="caption" color="text.secondary">
             {dayjs(entry.date).format('YYYY-MM-DD HH:mm')}
           </Typography>
-          {entry.note && (
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              {entry.note}
-            </Typography>
+
+          {/* 备注：静态展示 / 内联编辑切换 */}
+          {isEditingNote ? (
+            <Box sx={{ mt: 0.5 }}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                size="small"
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    handleCancelEditNote();
+                  }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleSaveNote();
+                  }
+                }}
+                autoFocus
+                placeholder="输入备注信息…"
+              />
+              <Box sx={{ display: 'flex', gap: 1, mt: 0.5, justifyContent: 'flex-end' }}>
+                <Button size="small" onClick={handleCancelEditNote}>
+                  取消
+                </Button>
+                <Button size="small" variant="contained" onClick={handleSaveNote}>
+                  保存
+                </Button>
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ mt: 0.5, display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+              {entry.note ? (
+                <Typography
+                  variant="body2"
+                  sx={{ flex: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                >
+                  {entry.note}
+                </Typography>
+              ) : (
+                <Typography
+                  variant="body2"
+                  color="text.disabled"
+                  sx={{ flex: 1, fontStyle: 'italic' }}
+                >
+                  暂无备注
+                </Typography>
+              )}
+              {onUpdateNote && (
+                <Tooltip title={entry.note ? '编辑备注' : '添加备注'}>
+                  <IconButton size="small" onClick={handleStartEditNote} sx={{ p: 0.5 }}>
+                    <EditIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
           )}
 
           {/* 多附件渲染 */}
@@ -218,6 +297,7 @@ function TimelineNodeCard({
  *   currentStatus?: string,
  *   onPasteImages?: (nodeName: string, files: File[]) => void,
  *   onDeleteAttachment?: (nodeName: string, attachmentId: string) => void,
+ *   onUpdateNote?: (nodeName: string, note: string) => void,
  * }} props
  */
 export default function StatusTimeline({
@@ -225,6 +305,7 @@ export default function StatusTimeline({
   currentStatus,
   onPasteImages,
   onDeleteAttachment,
+  onUpdateNote,
 }) {
   if (!timeline || timeline.length === 0) {
     return (
@@ -261,6 +342,7 @@ export default function StatusTimeline({
             totalLen={STATUS_NODES.length}
             onPasteImages={onPasteImages}
             onDeleteAttachment={onDeleteAttachment}
+            onUpdateNote={onUpdateNote}
           />
         );
       })}
