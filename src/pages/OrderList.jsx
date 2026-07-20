@@ -140,7 +140,8 @@ export default function OrderList() {
       result = result.filter(
         (o) =>
           o.customerName.toLowerCase().includes(kw) ||
-          o.poNumber.toLowerCase().includes(kw)
+          o.poNumber.toLowerCase().includes(kw) ||
+          (o.sku || '').toLowerCase().includes(kw)
       );
     }
 
@@ -561,7 +562,7 @@ export default function OrderList() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
           <TextField
             size="small"
-            placeholder="搜索客户名称或PO号…"
+            placeholder="搜索客户名称、PO号或SKU…"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             InputProps={{
