@@ -120,6 +120,8 @@ export default function OrderList() {
 
   // 鼠标悬停产品照片：{ orderId, anchorEl } | null
   const [hoveredRow, setHoveredRow] = useState(null);
+  // 鼠标当前位置（让产品照片跟随光标，浮在光标左上角）
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const hoverLeaveTimerRef = useRef(null);
 
   // 状态推进成功提示
@@ -401,6 +403,15 @@ export default function OrderList() {
                   hoverLeaveTimerRef.current = null;
                 }
                 setHoveredRow({ orderId: order.id, anchorEl: e.currentTarget });
+                setMousePos({ x: e.clientX, y: e.clientY });
+              }}
+              onMouseMove={(e) => {
+                // 仅当坐标变化时才更新 state，避免无效 re-render
+                setMousePos((prev) =>
+                  prev.x === e.clientX && prev.y === e.clientY
+                    ? prev
+                    : { x: e.clientX, y: e.clientY }
+                );
               }}
               onMouseLeave={() => {
                 if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
@@ -665,16 +676,22 @@ export default function OrderList() {
         ))}
       </Menu>
 
-      {/* 鼠标悬停产品照片预览：固定右下角浮窗（不挡页面、始终完整显示） */}
+      {/* 鼠标悬停产品照片预览：跟随鼠标，浮在光标左上角（不挡表格内容） */}
       {hoveredRow && (() => {
         const hoverOrder = orders.find((o) => o.id === hoveredRow.orderId);
         if (!hoverOrder || !hoverOrder.productPhoto) return null;
+        // 照片 + 标签区域总尺寸约 240×280；左上偏移 16px；与视口边缘最小 8px
+        const PHOTO_W = 240;
+        const PHOTO_H = 280;
+        const OFFSET = 16;
+        const left = Math.max(8, mousePos.x - PHOTO_W - OFFSET);
+        const top = Math.max(8, mousePos.y - PHOTO_H - OFFSET);
         return (
           <Box
             sx={{
               position: 'fixed',
-              bottom: 24,
-              right: 24,
+              left,
+              top,
               zIndex: 1300,
               pointerEvents: 'auto',
             }}
@@ -696,9 +713,9 @@ export default function OrderList() {
               <img
                 src={hoverOrder.productPhoto}
                 alt="产品照片"
-                style={{ width: 240, height: 240, objectFit: 'cover', display: 'block' }}
+                style={{ width: PHOTO_W, height: PHOTO_W, objectFit: 'cover', display: 'block' }}
               />
-              <Box sx={{ px: 1.5, py: 1, maxWidth: 240 }}>
+              <Box sx={{ px: 1.5, py: 1, maxWidth: PHOTO_W }}>
                 <Typography variant="body2" fontWeight={600} noWrap>
                   {hoverOrder.poNumber}
                 </Typography>
