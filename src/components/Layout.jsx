@@ -12,6 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
+import PeopleIcon from '@mui/icons-material/People';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { label: '仪表盘', path: '/', icon: <DashboardIcon /> },
   { label: '订单列表', path: '/orders', icon: <ListAltIcon /> },
   { label: '新建订单', path: '/orders/new', icon: <AddCircleIcon /> },
+  { label: '客户管理', path: '/customers', icon: <PeopleIcon /> },
 ];
 
 /**

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { OrderProvider } from './context/OrderContext';
+import { CustomerProvider } from './context/CustomerContext';
 import App from './App';
 import './index.css';
 
@@ -12,9 +13,11 @@ import './index.css';
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HashRouter>
-      <OrderProvider>
-        <App />
-      </OrderProvider>
+      <CustomerProvider>
+        <OrderProvider>
+          <App />
+        </OrderProvider>
+      </CustomerProvider>
     </HashRouter>
   </React.StrictMode>
 );

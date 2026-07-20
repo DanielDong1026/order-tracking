@@ -17,6 +17,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CloseIcon from '@mui/icons-material/Close';
 import { useOrders } from '../context/OrderContext';
+import { useCustomers } from '../context/CustomerContext';
 import { TRADE_TERMS, DEFAULT_ORDER_FORM } from '../data/constants';
 import { fileToBase64 } from '../utils/storage';
 import useAllTags from '../hooks/useAllTags';
@@ -35,6 +36,7 @@ export default function OrderForm() {
   const [searchParams] = useSearchParams();
   const copyId = searchParams.get('copy');
   const { addOrder, updateOrder, getOrderById, canEdit, orders } = useOrders();
+  const { customers } = useCustomers();
 
   const allTags = useAllTags(orders);
   const tagOptions = useMemo(() => allTags.map((t) => t.tag), [allTags]);
@@ -279,15 +281,65 @@ export default function OrderForm() {
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                required
-                label="客户名称"
-                value={form.customerName}
-                onChange={handleChange('customerName')}
-                error={Boolean(errors.customerName)}
-                helperText={errors.customerName}
+              <Autocomplete
+                freeSolo
                 size="small"
+                options={customers}
+                getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name || '')}
+                isOptionEqualToValue={(opt, val) =>
+                  (typeof opt === 'string' ? opt : opt.name) ===
+                  (typeof val === 'string' ? val : val?.name)
+                }
+                value={form.customerName}
+                onChange={(_, v) => {
+                  // 选项或自由输入：只保留 name 字符串
+                  const name = typeof v === 'string' ? v : v?.name || '';
+                  setForm((prev) => ({ ...prev, customerName: name }));
+                  if (errors.customerName) {
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.customerName;
+                      return next;
+                    });
+                  }
+                }}
+                onInputChange={(_, v) => {
+                  setForm((prev) => ({ ...prev, customerName: v || '' }));
+                  if (errors.customerName) {
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.customerName;
+                      return next;
+                    });
+                  }
+                }}
+                renderOption={(props, opt) => (
+                  <li {...props} key={opt.id}>
+                    <Box>
+                      <Typography variant="body2">{opt.name}</Typography>
+                      {(opt.contactPerson || opt.phone) && (
+                        <Typography variant="caption" color="text.secondary">
+                          {[opt.contactPerson, opt.phone].filter(Boolean).join(' · ')}
+                        </Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    required
+                    label="客户名称"
+                    error={Boolean(errors.customerName)}
+                    helperText={
+                      errors.customerName ||
+                      (customers.length === 0
+                        ? '暂无客户，请先到"客户管理"页面添加'
+                        : '可输入新名称或选择已有客户')
+                    }
+                    placeholder="如 ABC Trading LLC"
+                  />
+                )}
               />
             </Grid>
             <Grid item xs={12} sm={4}>

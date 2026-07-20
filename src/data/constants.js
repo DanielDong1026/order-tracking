@@ -62,6 +62,16 @@ export const DEFAULT_ORDER_FORM = {
   tags: [],
 };
 
+/** 客户表单字段默认值 */
+export const DEFAULT_CUSTOMER = {
+  name: '',
+  contactPerson: '',
+  phone: '',
+  email: '',
+  address: '',
+  notes: '',
+};
+
 /** 附件最大大小 5MB */
 export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 
