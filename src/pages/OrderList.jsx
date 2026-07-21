@@ -9,6 +9,12 @@ import Menu from '@mui/material/Menu';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Chip from '@mui/material/Chip';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -30,6 +36,8 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import SearchIcon from '@mui/icons-material/Search';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
+import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import dayjs from 'dayjs';
 import { useOrders } from '../context/OrderContext';
 import {
@@ -101,9 +109,36 @@ function exportToCSV(orders) {
  * 订单列表页面
  * - 桌面端：表格视图 + 左侧状态彩色竖条
  * - 移动端（<600px）：卡片布局
- * - 状态筛选 + 关键字搜索（客户名、PO号）
- * - CSV 导出 + 复制订单 + 快速状态推进
+ * - 状态筛选 + 关键字搜索（客户名、PO号、SKU）
+ * - CSV 导出 + 复制订单 + 快速状态推进 + 批量推进 + 列可见性
  */
+
+/** 可隐藏的列定义（key 对应 order 字段名或渲染 key） */
+const ALL_COLUMNS = [
+  { key: 'customerName', label: '客户名称' },
+  { key: 'poNumber', label: 'PO号' },
+  { key: 'sku', label: 'SKU' },
+  { key: 'productSummary', label: '产品概述' },
+  { key: 'quantity', label: '数量' },
+  { key: 'amount', label: '金额' },
+  { key: 'tradeTerm', label: '贸易术语' },
+  { key: 'status', label: '状态' },
+  { key: 'estimatedDeliveryDate', label: '预计交货日' },
+  { key: 'salesperson', label: '业务员' },
+  { key: 'portOfLoading', label: '起运港' },
+  { key: 'updatedAt', label: '更新时间' },
+];
+
+function loadColPrefs() {
+  try {
+    const r = localStorage.getItem('ot_col_visible');
+    return r ? JSON.parse(r) : null;
+  } catch { return null; }
+}
+function saveColPrefs(prefs) {
+  try { localStorage.setItem('ot_col_visible', JSON.stringify(prefs)); } catch {}
+}
+
 export default function OrderList() {
   const { orders, canEdit, advanceStatus, getNextStatuses } = useOrders();
   const navigate = useNavigate();
@@ -117,6 +152,22 @@ export default function OrderList() {
   // 快速状态推进：每行的下拉菜单锚点
   const [advanceAnchor, setAdvanceAnchor] = useState(null);
   const [advanceOrderId, setAdvanceOrderId] = useState(null);
+
+  // 批量推进
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchTargetStatus, setBatchTargetStatus] = useState('');
+
+  // 列可见性
+  const [colMenuAnchor, setColMenuAnchor] = useState(null);
+  const [visibleCols, setVisibleCols] = useState(() => {
+    const saved = loadColPrefs();
+    // 默认：前 9 列可见，业务员 / 起运港 隐藏
+    if (saved) return saved;
+    const defaults = {};
+    ALL_COLUMNS.forEach((c) => { defaults[c.key] = !['salesperson', 'portOfLoading'].includes(c.key); });
+    return defaults;
+  });
 
   // 鼠标悬停产品照片：{ orderId, anchorEl } | null
   const [hoveredRow, setHoveredRow] = useState(null);
@@ -161,6 +212,74 @@ export default function OrderList() {
 
     return result;
   }, [orders, keyword, statusFilter, selectedTags]);
+
+  /** 批量推进：对已选订单逐一推进到目标状态（只处理允许该切换的订单） */
+  const handleBatchAdvance = () => {
+    if (!batchTargetStatus || selectedIds.size === 0) return;
+    let count = 0;
+    const ids = Array.from(selectedIds);
+    ids.forEach((id) => {
+      const order = orders.find((o) => o.id === id);
+      if (!order) return;
+      const nextStatuses = getNextStatuses(order.status);
+      if (nextStatuses.includes(batchTargetStatus)) {
+        advanceStatus(id, batchTargetStatus);
+        count++;
+      }
+    });
+    setBatchDialogOpen(false);
+    setBatchTargetStatus('');
+    setSelectedIds(new Set());
+    setAdvanceSnackbar({
+      open: true,
+      message: count > 0
+        ? `已推进 ${count} 个订单至「${batchTargetStatus}」${count < ids.length ? `（${ids.length - count} 个不在可推进状态）` : ''}`
+        : `所选订单均无法推进至「${batchTargetStatus}」`,
+    });
+  };
+
+  /** 全选/取消全选 */
+  const handleToggleAll = () => {
+    if (selectedIds.size === filteredOrders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredOrders.map((o) => o.id)));
+    }
+  };
+
+  /** 单行选中/取消 */
+  const handleToggleRow = (orderId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
+
+  /** 列可见性切换 */
+  const handleToggleCol = (colKey) => {
+    setVisibleCols((prev) => {
+      const next = { ...prev, [colKey]: !prev[colKey] };
+      saveColPrefs(next);
+      return next;
+    });
+  };
+
+  // 与批量推进兼容的目标状态列表（选 id 的交集可推进状态）
+  const batchAvailableStatuses = useMemo(() => {
+    if (selectedIds.size === 0) return [];
+    const selectedOrders = orders.filter((o) => selectedIds.has(o.id));
+    if (selectedOrders.length === 0) return [];
+    // 取所有已选订单可推进状态的交集
+    let common = null;
+    for (const order of selectedOrders) {
+      const ns = new Set(getNextStatuses(order.status));
+      if (common === null) common = ns;
+      else common = new Set([...common].filter((s) => ns.has(s)));
+    }
+    return [...(common || [])];
+  }, [selectedIds, orders, getNextStatuses]);
 
   /**
    * 判断订单行是否需高亮预警
@@ -365,16 +484,17 @@ export default function OrderList() {
       <Table size="small">
         <TableHead>
           <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-            <TableCell sx={{ fontWeight: 700 }}>客户名称</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>PO号</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>产品概述</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>SKU</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>数量</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>金额</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>贸易术语</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>状态</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>预计交货日</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>更新时间</TableCell>
+            <TableCell sx={{ fontWeight: 700, width: 48 }}>
+              <Checkbox
+                size="small"
+                checked={selectedIds.size > 0 && selectedIds.size === filteredOrders.length}
+                indeterminate={selectedIds.size > 0 && selectedIds.size < filteredOrders.length}
+                onChange={handleToggleAll}
+              />
+            </TableCell>
+            {ALL_COLUMNS.filter((c) => visibleCols[c.key]).map((c) => (
+              <TableCell key={c.key} sx={{ fontWeight: 700 }}>{c.label}</TableCell>
+            ))}
             <TableCell sx={{ fontWeight: 700 }} align="center">
               操作
             </TableCell>
@@ -421,65 +541,32 @@ export default function OrderList() {
                 }, 150);
               }}
             >
-              <TableCell>{order.customerName}</TableCell>
-              <TableCell>
-                <Typography variant="body2" fontWeight={500}>
-                  {order.poNumber}
-                </Typography>
+              {/* 复选框 */}
+              <TableCell onClick={(e) => e.stopPropagation()} sx={{ p: 1, width: 48 }}>
+                <Checkbox
+                  size="small"
+                  checked={selectedIds.has(order.id)}
+                  onChange={() => handleToggleRow(order.id)}
+                />
               </TableCell>
-              <TableCell>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    maxWidth: 180,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {order.productSummary}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                {order.sku ? (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      maxWidth: 140,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: 'text.secondary',
-                    }}
-                  >
-                    {order.sku}
-                  </Typography>
-                ) : (
-                  <Typography variant="body2" color="text.disabled">-</Typography>
-                )}
-              </TableCell>
-              <TableCell>{order.quantity}</TableCell>
-              <TableCell>{order.amount}</TableCell>
-              <TableCell>{order.tradeTerm}</TableCell>
-              <TableCell>
-                <StatusBadge status={order.status} />
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 11, display: 'block', mt: 0.25 }}>
-                  {(() => {
-                    const days = dayjs().diff(dayjs(order.updatedAt), 'day');
-                    return days === 0 ? '今天更新' : `已停留 ${days} 天`;
-                  })()}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                {order.estimatedDeliveryDate
-                  ? dayjs(order.estimatedDeliveryDate).format('YYYY-MM-DD')
-                  : '-'}
-              </TableCell>
-              <TableCell>
-                {order.updatedAt ? dayjs(order.updatedAt).format('MM-DD HH:mm') : '-'}
-              </TableCell>
+              {/* 动态列 */}
+              {ALL_COLUMNS.filter((c) => visibleCols[c.key]).map((c) => {
+                switch (c.key) {
+                  case 'customerName': return <TableCell key={c.key}>{order.customerName}</TableCell>;
+                  case 'poNumber': return <TableCell key={c.key}><Typography variant="body2" fontWeight={500}>{order.poNumber}</Typography></TableCell>;
+                  case 'sku': return <TableCell key={c.key}>{order.sku ? <Typography variant="body2" sx={{maxWidth:140,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontFamily:'monospace',fontSize:12,color:'text.secondary'}}>{order.sku}</Typography> : <Typography variant="body2" color="text.disabled">-</Typography>}</TableCell>;
+                  case 'productSummary': return <TableCell key={c.key}><Typography variant="body2" sx={{maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{order.productSummary}</Typography></TableCell>;
+                  case 'quantity': return <TableCell key={c.key}>{order.quantity}</TableCell>;
+                  case 'amount': return <TableCell key={c.key}>{order.amount}</TableCell>;
+                  case 'tradeTerm': return <TableCell key={c.key}>{order.tradeTerm}</TableCell>;
+                  case 'status': return <TableCell key={c.key}><StatusBadge status={order.status} /><Typography variant="caption" sx={{color:'text.secondary',fontSize:11,display:'block',mt:0.25}}>{(() => { const days = dayjs().diff(dayjs(order.updatedAt), 'day'); return days === 0 ? '今天更新' : `已停留 ${days} 天`; })()}</Typography></TableCell>;
+                  case 'estimatedDeliveryDate': return <TableCell key={c.key}>{order.estimatedDeliveryDate ? dayjs(order.estimatedDeliveryDate).format('YYYY-MM-DD') : '-'}</TableCell>;
+                  case 'salesperson': return <TableCell key={c.key}>{order.salesperson || '-'}</TableCell>;
+                  case 'portOfLoading': return <TableCell key={c.key}>{order.portOfLoading || '-'}</TableCell>;
+                  case 'updatedAt': return <TableCell key={c.key}>{order.updatedAt ? dayjs(order.updatedAt).format('MM-DD HH:mm') : '-'}</TableCell>;
+                  default: return <TableCell key={c.key}>-</TableCell>;
+                }
+              })}
               <TableCell align="center">
                 <Box onClick={(e) => e.stopPropagation()} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                   <Tooltip title="查看详情">
@@ -551,8 +638,30 @@ export default function OrderList() {
           订单列表
         </Typography>
         <Stack direction="row" spacing={1}>
+          {/* 批量推进 */}
+          {selectedIds.size > 0 && (
+            <Button
+              variant="contained"
+              color="warning"
+              startIcon={<PlaylistAddCheckIcon />}
+              onClick={() => setBatchDialogOpen(true)}
+              size="small"
+            >
+              批量推进 ({selectedIds.size})
+            </Button>
+          )}
+          {/* 列可见性 */}
           <Button
             variant="outlined"
+            size="small"
+            startIcon={<ViewColumnIcon />}
+            onClick={(e) => setColMenuAnchor(e.currentTarget)}
+          >
+            列
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
             startIcon={<FileDownloadIcon />}
             onClick={() => exportToCSV(filteredOrders)}
             disabled={filteredOrders.length === 0}
@@ -561,6 +670,7 @@ export default function OrderList() {
           </Button>
           <Button
             variant="contained"
+            size="small"
             onClick={() => navigate('/orders/new')}
           >
             新建订单
@@ -727,6 +837,66 @@ export default function OrderList() {
           </Box>
         );
       })()}
+
+      {/* 批量推进 Dialog */}
+      <Dialog
+        open={batchDialogOpen}
+        onClose={() => { setBatchDialogOpen(false); setBatchTargetStatus(''); }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>批量推进 {selectedIds.size} 个订单</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            选择目标状态（只会推进那些当前允许切换到该状态的订单）：
+          </Typography>
+          {batchAvailableStatuses.length === 0 ? (
+            <Alert severity="warning">所选订单没有共同可推进的状态</Alert>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {batchAvailableStatuses.map((s) => (
+                <Button
+                  key={s}
+                  variant={batchTargetStatus === s ? 'contained' : 'outlined'}
+                  color="primary"
+                  onClick={() => setBatchTargetStatus(s)}
+                  fullWidth
+                >
+                  推进至「{s}」
+                </Button>
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setBatchDialogOpen(false); setBatchTargetStatus(''); }}>取消</Button>
+          <Button
+            variant="contained"
+            onClick={handleBatchAdvance}
+            disabled={!batchTargetStatus}
+          >
+            确认推进
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 列可见性切换 Menu */}
+      <Menu
+        anchorEl={colMenuAnchor}
+        open={Boolean(colMenuAnchor)}
+        onClose={() => setColMenuAnchor(null)}
+      >
+        {ALL_COLUMNS.map((c) => (
+          <MenuItem key={c.key} onClick={() => handleToggleCol(c.key)} dense>
+            <Checkbox
+              size="small"
+              checked={visibleCols[c.key]}
+              sx={{ p: 0.5 }}
+            />
+            <Typography variant="body2">{c.label}</Typography>
+          </MenuItem>
+        ))}
+      </Menu>
 
       {/* 状态推进成功提示 */}
       <Snackbar

@@ -296,7 +296,21 @@ export default function OrderForm() {
                 onChange={(_, v) => {
                   // 选项或自由输入：只保留 name 字符串
                   const name = typeof v === 'string' ? v : v?.name || '';
-                  setForm((prev) => ({ ...prev, customerName: name }));
+                  const updates = { customerName: name };
+
+                  // 选中已有客户（非自由输入）时，带出上一条同客户订单的贸易信息
+                  if (name && typeof v !== 'string' && v?.id) {
+                    const lastOrder = orders
+                      .filter((o) => (o.customerName || '').trim().toLowerCase() === name.trim().toLowerCase())
+                      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+                    if (lastOrder) {
+                      if (!form.tradeTerm.trim() && lastOrder.tradeTerm) updates.tradeTerm = lastOrder.tradeTerm;
+                      if (!form.portOfLoading.trim() && lastOrder.portOfLoading) updates.portOfLoading = lastOrder.portOfLoading;
+                      if (!form.portOfDestination.trim() && lastOrder.portOfDestination) updates.portOfDestination = lastOrder.portOfDestination;
+                    }
+                  }
+
+                  setForm((prev) => ({ ...prev, ...updates }));
                   if (errors.customerName) {
                     setErrors((prev) => {
                       const next = { ...prev };
