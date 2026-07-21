@@ -29,7 +29,7 @@ export default function StatusCard({ status, count, warning = false }) {
           boxShadow: 4,
         },
       }}
-      onClick={() => navigate('/orders')}
+      onClick={() => navigate(`/orders?status=${encodeURIComponent(status)}`)}
     >
       <CardContent>
         <Typography variant="subtitle2" color="text.secondary" gutterBottom>

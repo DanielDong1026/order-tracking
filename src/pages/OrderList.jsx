@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -142,11 +142,28 @@ function saveColPrefs(prefs) {
 export default function OrderList() {
   const { orders, canEdit, advanceStatus, getNextStatuses } = useOrders();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm')); // <600px
 
   const [keyword, setKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  // 初始值从 URL ?status= 读取，便于从仪表盘"已接单/生产中/…"等状态卡片点入
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '');
+
+  // URL 参数变化时同步 statusFilter（如浏览器后退 / 点侧栏仪表盘）
+  useEffect(() => {
+    const urlStatus = searchParams.get('status') || '';
+    setStatusFilter((prev) => (prev === urlStatus ? prev : urlStatus));
+  }, [searchParams]);
+
+  // 修改筛选时同步回 URL（无副作用，且可分享筛选后的 URL）
+  const updateStatusFilter = (val) => {
+    setStatusFilter(val);
+    const next = new URLSearchParams(searchParams);
+    if (val) next.set('status', val);
+    else next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
   const [selectedTags, setSelectedTags] = useState([]);
 
   // 快速状态推进：每行的下拉菜单锚点
@@ -696,7 +713,7 @@ export default function OrderList() {
             <Select
               value={statusFilter}
               label="状态筛选"
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => updateStatusFilter(e.target.value)}
             >
               <MenuItem value="">全部状态</MenuItem>
               {STATUS_NODES.map((s) => (
