@@ -286,7 +286,7 @@ export default function AuthPage() {
       setError('两次密码不一致');
       return;
     }
-    if (!captchaOk) {
+    if (tab === 1 && !captchaOk) {
       setError('请先完成滑动验证');
       return;
     }
@@ -404,8 +404,8 @@ export default function AuthPage() {
             />
           )}
 
-          {/* 滑动验证 */}
-          <SliderCaptcha onChange={setCaptchaOk} />
+          {/* 滑动验证（仅注册时显示） */}
+          {tab === 1 && <SliderCaptcha onChange={setCaptchaOk} />}
 
           <Button
             type="submit"
@@ -419,25 +419,32 @@ export default function AuthPage() {
           </Button>
         </Box>
 
-        <Divider sx={{ my: 3 }}>
-          <Typography variant="caption" color="text.disabled" sx={{ px: 1 }}>
-            或
-          </Typography>
-        </Divider>
-        <Button
-          variant="outlined"
-          fullWidth
-          size="large"
-          startIcon={<EngineeringIcon />}
-          onClick={handleDemo}
-          sx={{ py: 1.5, color: 'text.secondary' }}
-        >
-          演示体验（跳过注册）
-        </Button>
+        {/* 演示体验 — 仅注册页显示 */}
+        {tab === 1 && (
+          <>
+            <Divider sx={{ my: 3 }}>
+              <Typography variant="caption" color="text.disabled" sx={{ px: 1 }}>
+                或
+              </Typography>
+            </Divider>
+            <Button
+              variant="outlined"
+              fullWidth
+              size="large"
+              startIcon={<EngineeringIcon />}
+              onClick={handleDemo}
+              sx={{ py: 1.5, color: 'text.secondary' }}
+            >
+              演示体验（跳过注册）
+            </Button>
+          </>
+        )}
 
-        <Typography variant="caption" color="text.disabled" sx={{ mt: 3, display: 'block', textAlign: 'center' }}>
-          演示模式可预览全部功能 · 手机号注册可保存自己的数据
-        </Typography>
+        {tab === 1 && (
+          <Typography variant="caption" color="text.disabled" sx={{ mt: 3, display: 'block', textAlign: 'center' }}>
+            演示模式可预览全部功能 · 手机号注册可保存自己的数据
+          </Typography>
+        )}
       </Paper>
     </Box>
   );
