@@ -7,6 +7,7 @@ import { MAX_ATTACHMENT_SIZE } from '../data/constants';
 
 const STORAGE_KEY = 'order_tracking_orders';
 const CUSTOMERS_STORAGE_KEY = 'order_tracking_customers';
+const FACTORIES_STORAGE_KEY = 'order_tracking_factories';
 
 /**
  * 从 localStorage 读取订单数据
@@ -62,6 +63,35 @@ export function saveCustomers(customers) {
     localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(customers));
   } catch (err) {
     console.error('保存客户数据失败:', err);
+    throw new Error('保存失败，可能存储空间不足');
+  }
+}
+
+/**
+ * 从 localStorage 读取工厂数据
+ * @returns {Array} 工厂列表，解析失败返回空数组
+ */
+export function loadFactories() {
+  try {
+    const raw = localStorage.getItem(FACTORIES_STORAGE_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('读取工厂数据失败:', err);
+    return [];
+  }
+}
+
+/**
+ * 将工厂数据写入 localStorage
+ * @param {Array} factories - 工厂列表
+ */
+export function saveFactories(factories) {
+  try {
+    localStorage.setItem(FACTORIES_STORAGE_KEY, JSON.stringify(factories));
+  } catch (err) {
+    console.error('保存工厂数据失败:', err);
     throw new Error('保存失败，可能存储空间不足');
   }
 }

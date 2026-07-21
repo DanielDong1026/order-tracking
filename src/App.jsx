@@ -8,6 +8,7 @@ import OrderList from './pages/OrderList';
 import OrderForm from './pages/OrderForm';
 import OrderDetail from './pages/OrderDetail';
 import CustomerList from './pages/CustomerList';
+import FactoryList from './pages/FactoryList';
 import SharePage from './pages/SharePage';
 import NotFound from './pages/NotFound';
 
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/orders/:id/edit" element={<OrderForm />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/customers" element={<CustomerList />} />
+          <Route path="/factories" element={<FactoryList />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

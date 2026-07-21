@@ -27,6 +27,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DownloadIcon from '@mui/icons-material/Download';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import Tooltip from '@mui/material/Tooltip';
 import dayjs from 'dayjs';
 import { useOrders } from '../context/OrderContext';
 import { STATUS_NODES, STATUS_COLORS } from '../data/constants';
@@ -344,6 +345,34 @@ export default function Dashboard() {
     return allUpdates.slice(0, 5);
   }, [orders]);
 
+  // 近 6 个月月度趋势（按订单创建时间分组，状态分色）
+  const monthlyTrends = useMemo(() => {
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const m = dayjs().subtract(i, 'month');
+      months.push({
+        label: m.format('M月'),
+        key: m.format('YYYY-MM'),
+        start: m.startOf('month'),
+        end: m.endOf('month'),
+      });
+    }
+    return months.map((m) => {
+      const counts = {};
+      STATUS_NODES.forEach((s) => { counts[s] = 0; });
+      orders.forEach((o) => {
+        if (o.createdAt) {
+          const d = dayjs(o.createdAt);
+          if (d.isAfter(m.start.subtract(1, 'day')) && d.isBefore(m.end.add(1, 'day'))) {
+            counts[o.status] = (counts[o.status] || 0) + 1;
+          }
+        }
+      });
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      return { ...m, counts, total };
+    });
+  }, [orders]);
+
   return (
     <Box>
       <Typography variant="h4" fontWeight={700} gutterBottom>
@@ -405,6 +434,66 @@ export default function Dashboard() {
           </Grid>
         ))}
       </Grid>
+
+      {/* 月度趋势图（纯 CSS 堆叠条形图） */}
+      {orders.length > 0 && (
+        <Paper variant="outlined" sx={{ mb: 3 }}>
+          <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <BarChartIcon color="primary" />
+            <Typography variant="h6" fontWeight={600}>月度趋势</Typography>
+            <Typography variant="caption" color="text.secondary">
+              近 6 个月订单创建分布（按状态分色）
+            </Typography>
+          </Box>
+          <Divider />
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {monthlyTrends.map((m) => (
+                <Box key={m.key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" sx={{ width: 32, textAlign: 'right', flexShrink: 0, fontWeight: 600 }}>
+                    {m.label}
+                  </Typography>
+                  <Box sx={{ flex: 1, display: 'flex', height: 20, borderRadius: 1, overflow: 'hidden', bgcolor: '#f0f0f0' }}>
+                    {m.total === 0 ? (
+                      <Typography variant="caption" color="text.disabled" sx={{ px: 1, alignSelf: 'center' }}>
+                        无数据
+                      </Typography>
+                    ) : (
+                      STATUS_NODES.filter((s) => m.counts[s] > 0).map((s) => {
+                        const pct = (m.counts[s] / m.total) * 100;
+                        return (
+                          <Tooltip key={s} title={`${s}: ${m.counts[s]} 单`}>
+                            <Box
+                              sx={{
+                                width: `${pct}%`,
+                                minWidth: 4,
+                                bgcolor: STATUS_COLORS[s] || '#757575',
+                                transition: 'flex-grow 0.3s',
+                              }}
+                            />
+                          </Tooltip>
+                        );
+                      })
+                    )}
+                  </Box>
+                  <Typography variant="caption" sx={{ width: 30, textAlign: 'right', flexShrink: 0, fontWeight: 500 }}>
+                    {m.total > 0 ? m.total : ''}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            {/* 图例 */}
+            <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
+              {STATUS_NODES.map((s) => (
+                <Box key={s} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Box sx={{ width: 12, height: 12, borderRadius: '2px', bgcolor: STATUS_COLORS[s] }} />
+                  <Typography variant="caption">{s}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        </Paper>
+      )}
 
       {/* 已出货未收款预警 */}
       {shippedUnpaid.length > 0 && (

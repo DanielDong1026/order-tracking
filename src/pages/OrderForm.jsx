@@ -18,6 +18,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CloseIcon from '@mui/icons-material/Close';
 import { useOrders } from '../context/OrderContext';
 import { useCustomers } from '../context/CustomerContext';
+import { useFactories } from '../context/FactoryContext';
 import { TRADE_TERMS, DEFAULT_ORDER_FORM } from '../data/constants';
 import { fileToBase64 } from '../utils/storage';
 import useAllTags from '../hooks/useAllTags';
@@ -37,6 +38,7 @@ export default function OrderForm() {
   const copyId = searchParams.get('copy');
   const { addOrder, updateOrder, getOrderById, canEdit, orders } = useOrders();
   const { customers } = useCustomers();
+  const { factories } = useFactories();
 
   const allTags = useAllTags(orders);
   const tagOptions = useMemo(() => allTags.map((t) => t.tag), [allTags]);
@@ -481,12 +483,43 @@ export default function OrderForm() {
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="工厂名称"
-                value={form.factoryName}
-                onChange={handleChange('factoryName')}
+              <Autocomplete
+                freeSolo
                 size="small"
+                options={factories}
+                getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name || '')}
+                isOptionEqualToValue={(opt, val) =>
+                  (typeof opt === 'string' ? opt : opt.name) ===
+                  (typeof val === 'string' ? val : val?.name)
+                }
+                value={form.factoryName}
+                onChange={(_, v) => {
+                  const name = typeof v === 'string' ? v : v?.name || '';
+                  setForm((prev) => ({ ...prev, factoryName: name }));
+                }}
+                onInputChange={(_, v) => {
+                  setForm((prev) => ({ ...prev, factoryName: v || '' }));
+                }}
+                renderOption={(props, opt) => (
+                  <li {...props} key={opt.id}>
+                    <Box>
+                      <Typography variant="body2">{opt.name}</Typography>
+                      {(opt.contactPerson || opt.phone) && (
+                        <Typography variant="caption" color="text.secondary">
+                          {[opt.contactPerson, opt.phone].filter(Boolean).join(' · ')}
+                        </Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="工厂名称"
+                    placeholder="如 绍兴XX制衣厂"
+                    helperText={factories.length === 0 ? '暂无工厂，请先到"工厂管理"页面添加' : '可输入新名称或选择已有工厂'}
+                  />
+                )}
               />
             </Grid>
             <Grid item xs={12}>
