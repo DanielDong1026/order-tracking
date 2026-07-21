@@ -807,9 +807,9 @@ export default function OrderList() {
       {hoveredRow && (() => {
         const hoverOrder = orders.find((o) => o.id === hoveredRow.orderId);
         if (!hoverOrder || !hoverOrder.productPhoto) return null;
-        // 照片 + 标签区域总尺寸约 240×280；左上偏移 16px；与视口边缘最小 8px
-        const PHOTO_W = 240;
-        const PHOTO_H = 280;
+        // 照片 + 标签区域总尺寸约 180×220；左上偏移 16px；与视口边缘最小 8px
+        const PHOTO_W = 180;
+        const PHOTO_H = 220;
         const OFFSET = 16;
         const left = Math.max(8, mousePos.x - PHOTO_W - OFFSET);
         const top = Math.max(8, mousePos.y - PHOTO_H - OFFSET);
