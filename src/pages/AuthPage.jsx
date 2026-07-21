@@ -72,37 +72,52 @@ function AppLogo({ size = 80 }) {
  * 滑动验证组件（纯前端，无第三方依赖）
  * - 拖到右端即成功
  * - 3 秒后自动重置
- * 关键：使用 ref 跟踪位置，避免 useEffect 重装监听器导致滑动被打断
+ * 关键：用像素位移而非百分比，避免 translateX(X%) 基于元素自身宽度的陷阱
  */
 function SliderCaptcha({ onChange }) {
   const [status, setStatus] = useState('idle'); // 'idle' | 'success'
-  const [progress, setProgress] = useState(0); // 0~100（仅用于渲染）
+  const [progress, setProgress] = useState(0); // 0~100（仅用于进度条填充）
+  const [maxX, setMaxX] = useState(0); // 滑块可平移的像素上限
   const trackRef = useRef(null);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
-  const offsetRef = useRef(0); // 当前滑块已平移的像素（用 ref 避免闭包陷阱）
+  const offsetRef = useRef(0); // 当前滑块已平移的像素
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
-  // 监听只在组件卸载时清理（onChange 用 ref 替代，effect 不再依赖 progress）
+  // 测量轨道宽度 → 计算 maxX（响应窗口 resize）
+  useEffect(() => {
+    const updateMaxX = () => {
+      if (trackRef.current) {
+        const w = trackRef.current.getBoundingClientRect().width;
+        setMaxX(Math.max(0, w - 44));
+      }
+    };
+    updateMaxX();
+    window.addEventListener('resize', updateMaxX);
+    return () => window.removeEventListener('resize', updateMaxX);
+  }, []);
+
+  // 监听只在组件卸载时清理（progress/onChange 通过 state/ref 解耦）
   useEffect(() => {
     const handleMove = (e) => {
       if (!draggingRef.current || !trackRef.current) return;
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const trackRect = trackRef.current.getBoundingClientRect();
-      const maxX = Math.max(0, trackRect.width - 44); // 滑块宽 44px
+      // 实时重算 maxX（处理窗口尺寸变化等极端情况）
+      const currentMaxX = Math.max(0, trackRect.width - 44);
       const delta = clientX - startXRef.current + offsetRef.current;
-      const next = Math.max(0, Math.min(delta, maxX));
+      const next = Math.max(0, Math.min(delta, currentMaxX));
       offsetRef.current = next;
-      setProgress(maxX > 0 ? (next / maxX) * 100 : 0);
+      setProgress(currentMaxX > 0 ? (next / currentMaxX) * 100 : 0);
     };
 
     const handleUp = () => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
       const trackRect = trackRef.current?.getBoundingClientRect();
-      const maxX = Math.max(0, (trackRect?.width || 0) - 44);
-      const finalPct = maxX > 0 ? (offsetRef.current / maxX) * 100 : 0;
+      const m = Math.max(0, (trackRect?.width || 0) - 44);
+      const finalPct = m > 0 ? (offsetRef.current / m) * 100 : 0;
       if (finalPct > 92) {
         setProgress(100);
         setStatus('success');
@@ -114,7 +129,6 @@ function SliderCaptcha({ onChange }) {
           onChangeRef.current && onChangeRef.current(false);
         }, 3000);
       } else {
-        // 没到 100% 弹回
         setProgress(0);
         offsetRef.current = 0;
       }
@@ -130,7 +144,7 @@ function SliderCaptcha({ onChange }) {
       window.removeEventListener('touchmove', handleMove);
       window.removeEventListener('touchend', handleUp);
     };
-  }, []); // 只在挂载/卸载时运行
+  }, []);
 
   const handleDown = (e) => {
     if (status !== 'idle') return;
@@ -201,7 +215,7 @@ function SliderCaptcha({ onChange }) {
             {trackText}
           </Typography>
         </Box>
-        {/* 滑块 */}
+        {/* 滑块：用像素位移 translateX(px) 而非百分比 */}
         <Box
           onMouseDown={handleDown}
           onTouchStart={handleDown}
@@ -217,11 +231,11 @@ function SliderCaptcha({ onChange }) {
             bgcolor: sliderColor,
             color: '#fff',
             borderRadius: '50%',
-            transform: `translateX(${progress}%)`,
-            transition: status === 'idle' && progress > 0 && progress < 100 ? 'transform 0.3s' : 'none',
+            transform: `translateX(${offsetRef.current}px)`,
             cursor: status === 'idle' ? 'grab' : 'default',
             boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
             zIndex: 1,
+            transition: status === 'idle' && progress === 0 ? 'transform 0.2s' : 'none',
             '&:active': { cursor: 'grabbing' },
           }}
         >
