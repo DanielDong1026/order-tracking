@@ -355,25 +355,25 @@ export default function OrderList() {
   };
 
   /**
-   * 获取行背景色（基于高亮状态）
+   * 获取行背景色（暗色模式下用半透明色，避免浅色背景 + 浅色文字）
    * @param {'red' | 'yellow' | null} highlight
-   * @returns {string}
    */
   const getRowBgcolor = (highlight) => {
-    if (highlight === 'red') return OVERDUE_RED_BG;
-    if (highlight === 'yellow') return STALE_YELLOW_BG;
+    const isDark = theme.palette.mode === 'dark';
+    if (highlight === 'red') return isDark ? 'rgba(244, 67, 54, 0.18)' : OVERDUE_RED_BG;
+    if (highlight === 'yellow') return isDark ? 'rgba(255, 193, 7, 0.18)' : STALE_YELLOW_BG;
     return 'transparent';
   };
 
   /**
    * 获取行 hover 背景色
    * @param {'red' | 'yellow' | null} highlight
-   * @returns {string | undefined}
    */
   const getRowHoverBgcolor = (highlight) => {
-    if (highlight === 'red') return '#FFE0E0';
-    if (highlight === 'yellow') return '#FFF8D0';
-    return undefined;
+    const isDark = theme.palette.mode === 'dark';
+    if (highlight === 'red') return isDark ? 'rgba(244, 67, 54, 0.28)' : '#FFE0E0';
+    if (highlight === 'yellow') return isDark ? 'rgba(255, 193, 7, 0.28)' : '#FFF8D0';
+    return isDark ? 'rgba(255, 255, 255, 0.08)' : undefined;
   };
 
   // ---- 移动端卡片渲染 ----
@@ -500,7 +500,7 @@ export default function OrderList() {
     <TableContainer component={Paper} variant="outlined">
       <Table size="small">
         <TableHead>
-          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+          <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#f5f5f5' }}>
             <TableCell sx={{ fontWeight: 700, width: 48 }}>
               <Checkbox
                 size="small"
