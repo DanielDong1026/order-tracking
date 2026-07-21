@@ -72,38 +72,46 @@ function AppLogo({ size = 80 }) {
  * 滑动验证组件（纯前端，无第三方依赖）
  * - 拖到右端即成功
  * - 3 秒后自动重置
+ * 关键：使用 ref 跟踪位置，避免 useEffect 重装监听器导致滑动被打断
  */
 function SliderCaptcha({ onChange }) {
-  const [status, setStatus] = useState('idle'); // 'idle' | 'verifying' | 'success'
-  const [progress, setProgress] = useState(0); // 0~100
+  const [status, setStatus] = useState('idle'); // 'idle' | 'success'
+  const [progress, setProgress] = useState(0); // 0~100（仅用于渲染）
   const trackRef = useRef(null);
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
-  const offsetRef = useRef(0);
+  const offsetRef = useRef(0); // 当前滑块已平移的像素（用 ref 避免闭包陷阱）
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
+  // 监听只在组件卸载时清理（onChange 用 ref 替代，effect 不再依赖 progress）
   useEffect(() => {
     const handleMove = (e) => {
       if (!draggingRef.current || !trackRef.current) return;
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const trackRect = trackRef.current.getBoundingClientRect();
-      const maxX = trackRect.width - 44; // 滑块宽 44px
+      const maxX = Math.max(0, trackRect.width - 44); // 滑块宽 44px
       const delta = clientX - startXRef.current + offsetRef.current;
       const next = Math.max(0, Math.min(delta, maxX));
-      setProgress((next / maxX) * 100);
+      offsetRef.current = next;
+      setProgress(maxX > 0 ? (next / maxX) * 100 : 0);
     };
+
     const handleUp = () => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
-      if (progress > 92) {
+      const trackRect = trackRef.current?.getBoundingClientRect();
+      const maxX = Math.max(0, (trackRect?.width || 0) - 44);
+      const finalPct = maxX > 0 ? (offsetRef.current / maxX) * 100 : 0;
+      if (finalPct > 92) {
         setProgress(100);
         setStatus('success');
-        onChange && onChange(true);
-        // 3 秒后自动重置
+        onChangeRef.current && onChangeRef.current(true);
         setTimeout(() => {
           setStatus('idle');
           setProgress(0);
           offsetRef.current = 0;
-          onChange && onChange(false);
+          onChangeRef.current && onChangeRef.current(false);
         }, 3000);
       } else {
         // 没到 100% 弹回
@@ -111,6 +119,7 @@ function SliderCaptcha({ onChange }) {
         offsetRef.current = 0;
       }
     };
+
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
     window.addEventListener('touchmove', handleMove, { passive: true });
@@ -121,10 +130,11 @@ function SliderCaptcha({ onChange }) {
       window.removeEventListener('touchmove', handleMove);
       window.removeEventListener('touchend', handleUp);
     };
-  }, [progress, onChange]);
+  }, []); // 只在挂载/卸载时运行
 
   const handleDown = (e) => {
     if (status !== 'idle') return;
+    e.preventDefault();
     draggingRef.current = true;
     startXRef.current = e.touches ? e.touches[0].clientX : e.clientX;
   };
@@ -133,7 +143,7 @@ function SliderCaptcha({ onChange }) {
     setStatus('idle');
     setProgress(0);
     offsetRef.current = 0;
-    onChange && onChange(false);
+    onChangeRef.current && onChangeRef.current(false);
   };
 
   const trackText = status === 'success' ? '✓ 验证成功' : '请按住滑块向右拖动';
@@ -154,6 +164,7 @@ function SliderCaptcha({ onChange }) {
           border: '1px solid',
           borderColor: 'divider',
           transition: 'background-color 0.2s',
+          touchAction: 'none',
         }}
       >
         {/* 进度填充 */}
@@ -165,7 +176,7 @@ function SliderCaptcha({ onChange }) {
             bottom: 0,
             width: `${progress}%`,
             bgcolor: status === 'success' ? '#c8e6c9' : '#bbdefb',
-            transition: status === 'idle' && progress > 0 ? 'width 0.3s' : 'none',
+            transition: status === 'idle' && progress > 0 && progress < 100 ? 'width 0.3s' : 'none',
           }}
         />
         {/* 文字 */}
