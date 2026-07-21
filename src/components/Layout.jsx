@@ -20,6 +20,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import dayjs from 'dayjs';
 import { useOrders } from '../context/OrderContext';
+import { useCustomers } from '../context/CustomerContext';
+import { useFactories } from '../context/FactoryContext';
 import ImportDialog from './ImportDialog';
 
 const NAV_ITEMS = [
@@ -38,6 +40,8 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
   const navigate = useNavigate();
   const location = useLocation();
   const { orders, importOrders } = useOrders();
+  const { customers } = useCustomers();
+  const { factories } = useFactories();
 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
@@ -78,10 +82,10 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate]);
 
-  /** 导出全部数据为 JSON 文件 */
+  /** 导出全部数据为 JSON 文件（订单 + 客户 + 工厂） */
   const handleExport = () => {
     const data = JSON.stringify(
-      { orders, exportTime: new Date().toISOString() },
+      { orders, customers, factories, exportTime: new Date().toISOString(), version: '2.0' },
       null,
       2
     );
@@ -139,7 +143,7 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
                 {isDark ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
             </Tooltip>
-            <Tooltip title="导出全部订单数据为 JSON 文件">
+            <Tooltip title="导出全部数据（订单 + 客户 + 工厂）为 JSON 文件">
               <Button
                 color="inherit"
                 size="small"
@@ -150,7 +154,7 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
                 导出数据
               </Button>
             </Tooltip>
-            <Tooltip title="从 JSON 备份文件导入订单数据">
+            <Tooltip title="从 JSON 备份文件恢复全部数据（订单 + 客户 + 工厂）">
               <Button
                 color="inherit"
                 size="small"
@@ -189,6 +193,8 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
         onClose={() => setImportDialogOpen(false)}
         orders={orders}
         importOrders={importOrders}
+        customers={customers}
+        factories={factories}
       />
     </Box>
   );

@@ -19,13 +19,10 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
  * 导入数据 Dialog
  * - 选择 JSON 文件
  * - 解析并验证格式
- * - 显示导入预览（文件含 X 条，当前有 Y 条）
+ * - 显示导入预览（订单 + 客户 + 工厂）
  * - 选择覆盖导入 / 合并导入
- * - 确认执行导入
- *
- * @param {{ open: boolean, onClose: () => void, orders: Array, importOrders: (orders, mode) => { added, skipped } }} props
- */
-export default function ImportDialog({ open, onClose, orders, importOrders }) {
+ * - 确认执行导入（通过 onImportAll 回调由父组件处理） */
+export default function ImportDialog({ open, onClose, orders, importOrders, customers = [], factories = [] }) {
   const [step, setStep] = useState('select'); // 'select' | 'preview' | 'importing' | 'done'
   const [fileData, setFileData] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -67,12 +64,16 @@ export default function ImportDialog({ open, onClose, orders, importOrders }) {
         const text = event.target.result;
         const data = JSON.parse(text);
 
-        // 验证格式：必须包含 orders 数组
+        // 验证格式：必须包含 orders 数组（兼容旧格式只有 orders 的文件）
         if (!data.orders || !Array.isArray(data.orders)) {
           setError('文件格式不正确：缺少 orders 数组字段');
           setStep('select');
           return;
         }
+
+        // 检查并规范化附属数据
+        if (!Array.isArray(data.customers)) data.customers = [];
+        if (!Array.isArray(data.factories)) data.factories = [];
 
         // 验证每个订单至少有关键字段
         const invalidOrders = data.orders.filter(
@@ -111,8 +112,49 @@ export default function ImportDialog({ open, onClose, orders, importOrders }) {
     setError('');
 
     try {
-      const result = importOrders(fileData.orders, mode);
-      setImportResult(result);
+      const orderResult = importOrders(fileData.orders, mode);
+
+      // 导入客户（如果有）
+      let custResult = null;
+      if (fileData.customers.length > 0) {
+        const key = 'order_tracking_customers';
+        if (mode === 'overwrite') {
+          localStorage.setItem(key, JSON.stringify(fileData.customers));
+          custResult = { added: fileData.customers.length, skipped: 0 };
+        } else {
+          const existing = JSON.parse(localStorage.getItem(key) || '[]');
+          const existingNames = new Set(existing.map((c) => c.name.toLowerCase().trim()));
+          const newOnes = fileData.customers.filter(
+            (c) => !existingNames.has((c.name || '').toLowerCase().trim())
+          );
+          if (newOnes.length > 0) {
+            localStorage.setItem(key, JSON.stringify([...existing, ...newOnes]));
+          }
+          custResult = { added: newOnes.length, skipped: fileData.customers.length - newOnes.length };
+        }
+      }
+
+      // 导入工厂（如果有）
+      let factResult = null;
+      if (fileData.factories.length > 0) {
+        const key = 'order_tracking_factories';
+        if (mode === 'overwrite') {
+          localStorage.setItem(key, JSON.stringify(fileData.factories));
+          factResult = { added: fileData.factories.length, skipped: 0 };
+        } else {
+          const existing = JSON.parse(localStorage.getItem(key) || '[]');
+          const existingNames = new Set(existing.map((f) => f.name.toLowerCase().trim()));
+          const newOnes = fileData.factories.filter(
+            (f) => !existingNames.has((f.name || '').toLowerCase().trim())
+          );
+          if (newOnes.length > 0) {
+            localStorage.setItem(key, JSON.stringify([...existing, ...newOnes]));
+          }
+          factResult = { added: newOnes.length, skipped: fileData.factories.length - newOnes.length };
+        }
+      }
+
+      setImportResult({ orders: orderResult, customers: custResult, factories: factResult });
       setStep('done');
     } catch (err) {
       setError(err.message || '导入失败');
@@ -128,7 +170,11 @@ export default function ImportDialog({ open, onClose, orders, importOrders }) {
   };
 
   const fileOrderCount = fileData?.orders?.length || 0;
+  const fileCustomerCount = fileData?.customers?.length || 0;
+  const fileFactoryCount = fileData?.factories?.length || 0;
   const currentOrderCount = orders?.length || 0;
+  const currentCustomerCount = customers?.length || 0;
+  const currentFactoryCount = factories?.length || 0;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -177,23 +223,27 @@ export default function ImportDialog({ open, onClose, orders, importOrders }) {
               导入预览
             </Typography>
 
-            <Box sx={{ display: 'flex', gap: 4, mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 4, mb: 2, flexWrap: 'wrap' }}>
               <Box>
-                <Typography variant="h6" color="primary.main">
-                  {fileOrderCount}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  文件中订单数
-                </Typography>
+                <Typography variant="h6" color="primary.main">{fileOrderCount}</Typography>
+                <Typography variant="caption" color="text.secondary">文件中订单数</Typography>
               </Box>
               <Box>
-                <Typography variant="h6">
-                  {currentOrderCount}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  当前已有订单数
-                </Typography>
+                <Typography variant="h6">{currentOrderCount}</Typography>
+                <Typography variant="caption" color="text.secondary">当前已有订单数</Typography>
               </Box>
+              {fileCustomerCount > 0 && (
+                <Box>
+                  <Typography variant="h6" color="primary.main">{fileCustomerCount}</Typography>
+                  <Typography variant="caption" color="text.secondary">文件中客户数 (已有 {currentCustomerCount})</Typography>
+                </Box>
+              )}
+              {fileFactoryCount > 0 && (
+                <Box>
+                  <Typography variant="h6" color="primary.main">{fileFactoryCount}</Typography>
+                  <Typography variant="caption" color="text.secondary">文件中工厂数 (已有 {currentFactoryCount})</Typography>
+                </Box>
+              )}
             </Box>
 
             {fileData?.exportTime && (
@@ -240,7 +290,7 @@ export default function ImportDialog({ open, onClose, orders, importOrders }) {
 
             {mode === 'overwrite' && (
               <Alert severity="warning" icon={<WarningAmberIcon />} sx={{ mt: 2 }}>
-                覆盖导入将删除当前全部 {currentOrderCount} 条订单，替换为文件中的 {fileOrderCount} 条。此操作不可恢复！
+                覆盖导入将删除当前全部数据（{currentOrderCount} 订单 / {currentCustomerCount} 客户 / {currentFactoryCount} 工厂），替换为文件中的 {fileOrderCount} 订单 / {fileCustomerCount} 客户 / {fileFactoryCount} 工厂。此操作不可恢复！
               </Alert>
             )}
           </Box>
@@ -259,20 +309,30 @@ export default function ImportDialog({ open, onClose, orders, importOrders }) {
         {/* Step 4: 完成 */}
         {step === 'done' && importResult && (
           <Box sx={{ py: 2 }}>
-            <Alert severity="success" sx={{ mb: 2 }}>
-              数据导入成功！
-            </Alert>
+            <Alert severity="success" sx={{ mb: 2 }}>数据导入成功！</Alert>
             <Typography variant="body1" gutterBottom>
-              新增 {importResult.added} 条订单
-              {importResult.skipped > 0 && (
-                <Typography component="span" color="text.secondary">
-                  ，跳过 {importResult.skipped} 条（PO 号重复）
-                </Typography>
+              订单：新增 {importResult.orders?.added ?? 0} 条
+              {importResult.orders?.skipped > 0 && (
+                <Typography component="span" color="text.secondary">，跳过 {importResult.orders.skipped} 条（PO 号重复）</Typography>
               )}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              页面即将刷新以展示最新数据
-            </Typography>
+            {importResult.customers && (
+              <Typography variant="body1" gutterBottom>
+                客户：新增 {importResult.customers.added} 位
+                {importResult.customers.skipped > 0 && (
+                  <Typography component="span" color="text.secondary">，跳过 {importResult.customers.skipped} 位（重名）</Typography>
+                )}
+              </Typography>
+            )}
+            {importResult.factories && (
+              <Typography variant="body1" gutterBottom>
+                工厂：新增 {importResult.factories.added} 家
+                {importResult.factories.skipped > 0 && (
+                  <Typography component="span" color="text.secondary">，跳过 {importResult.factories.skipped} 家（重名）</Typography>
+                )}
+              </Typography>
+            )}
+            <Typography variant="caption" color="text.secondary">页面即将刷新以展示最新数据</Typography>
           </Box>
         )}
       </DialogContent>
