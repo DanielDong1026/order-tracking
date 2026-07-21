@@ -22,6 +22,7 @@ import dayjs from 'dayjs';
 import { useOrders } from '../context/OrderContext';
 import { useCustomers } from '../context/CustomerContext';
 import { useFactories } from '../context/FactoryContext';
+import { useAuth } from '../context/AuthContext';
 import ImportDialog from './ImportDialog';
 
 const NAV_ITEMS = [
@@ -42,6 +43,7 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
   const { orders, importOrders } = useOrders();
   const { customers } = useCustomers();
   const { factories } = useFactories();
+  const { username, isDemo, logout } = useAuth();
 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
@@ -134,9 +136,37 @@ export default function Layout({ toggleTheme = () => {}, themeMode = 'light' }) 
             })}
           </Box>
 
-          {/* 右侧操作区：暗色模式切换 + 导出/导入 */}
+          {/* 右侧操作区：用户 + 暗色模式 + 导出/导入 */}
           <Box sx={{ flexGrow: 1 }} />
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/* 用户名标签 */}
+            <Tooltip title={isDemo ? '演示模式 — 单击登录/注册以保存数据' : ''}>
+              <Typography
+                variant="caption"
+                sx={{
+                  mr: 1,
+                  color: 'inherit',
+                  opacity: 0.9,
+                  display: { xs: 'none', sm: 'block' },
+                }}
+              >
+                {isDemo ? '👤 演示' : `👤 ${username}`}
+              </Typography>
+            </Tooltip>
+            {/* 注销 */}
+            <Tooltip title="注销并返回登录页">
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  logout();
+                  navigate('/');
+                }}
+                sx={{ textTransform: 'none', fontSize: '0.75rem', opacity: 0.8 }}
+              >
+                注销
+              </Button>
+            </Tooltip>
             {/* 暗色/亮色模式切换 */}
             <Tooltip title={isDark ? '切换亮色模式' : '切换暗色模式'}>
               <IconButton color="inherit" onClick={toggleTheme} size="small">

@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { useAuth } from './context/AuthContext';
+import AuthPage from './pages/AuthPage';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import OrderList from './pages/OrderList';
@@ -49,11 +51,9 @@ const getTheme = (mode) => createTheme({
 });
 
 /**
- * 应用根组件
- * - 管理亮色/暗色主题模式（state + localStorage）
- * - 路由分叉：分享页独立于 Layout，其余页面包裹在 Layout 内
+ * 应用壳（登录后才渲染，含完整路由 + Providers）
  */
-export default function App() {
+function AppShell() {
   const [themeMode, setThemeMode] = useState(
     () => localStorage.getItem('themeMode') || 'light'
   );
@@ -75,7 +75,7 @@ export default function App() {
       <Routes>
         {/* 分享只读页 — 独立路由，不在 Layout 内 */}
         <Route path="/share/:shareToken" element={<SharePage />} />
-        {/* 主应用路由 — 包裹在 Layout（侧边栏 + 顶部导航） */}
+        {/* 主应用路由 — 包裹在 Layout 内 */}
         <Route element={<Layout toggleTheme={toggleTheme} themeMode={themeMode} />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/orders" element={<OrderList />} />
@@ -89,4 +89,18 @@ export default function App() {
       </Routes>
     </ThemeProvider>
   );
+}
+
+/**
+ * 应用根组件 — 路由守卫
+ */
+export default function App() {
+  const { isLoggedIn, isDemo } = useAuth();
+
+  // 未登录（非演示）→ 显示注册/登录页
+  if (!isLoggedIn && !isDemo) {
+    return <AuthPage />;
+  }
+
+  return <AppShell />;
 }
